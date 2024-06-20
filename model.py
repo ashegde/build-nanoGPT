@@ -8,11 +8,11 @@ import math
 
 @dataclass
 class GPTConfig:
-    block_size: int = 256
-    vocab_size: int = 65
-    n_layer: int = 6
-    n_head: int = 6
-    n_embd: int = 384
+    block_size: int = 1024
+    vocab_size: int = 50257
+    n_layer: int = 12
+    n_head: int = 12
+    n_embd: int = 768
 
 
 class CausalSelfAttention(nn.Module):
@@ -95,7 +95,7 @@ class GPT(nn.Module):
 
         self.transformer = nn.ModuleDict(dict(
             wte = nn.Embedding(config.vocab_size, config.n_embd),                 # weights of the token embeddings
-            wpe = nn.Embeddding(config.block_size, config.n_embd),                # weights of the position embeddings
+            wpe = nn.Embedding(config.block_size, config.n_embd),                # weights of the position embeddings
             h = nn.ModuleList([Block(config) for _ in range(config.n_layer)]),    # attention block
             ln_f = nn.LayerNorm(config.n_embd),                                   # final layer norm
         ))
