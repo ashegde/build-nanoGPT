@@ -29,7 +29,7 @@ class CausalSelfAttention(nn.Module):
 
         # this is more of a mask than a bias, but following Karpathy's lecture, which follows the 
         # OpenAI/HuggingFace naming convention, we will use "bias".
-        self.register_buffer("bias", torch.tril(torch.ones(config.block_size, config.blog_size))
+        self.register_buffer("bias", torch.tril(torch.ones(config.block_size, config.block_size))
                              .view(1, 1, config.block_size, config.block_size))
 
     def forward(self, x):
