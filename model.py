@@ -114,6 +114,8 @@ class GPT(nn.Module):
             x = block(x)  # (B, T, n_embd)
         x = self.transformer.ln_f(x) #(B, T, n_embd)
         logits = self.lm_head(x) # (B, T, vocab_size)
+        # for a given batch b and token t, logits[b,t,:] gives the predictive distribution (in logits, pre-softmax)
+        # for the next token t+1 given the previous :t tokens.
         return logits
  
 
