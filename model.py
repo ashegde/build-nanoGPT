@@ -103,7 +103,7 @@ class GPT(nn.Module):
 
     def forward(self, idx):
         # idx is (B,T)
-        B, T = idx.shape()
+        B, T = idx.size()
         assert T <= self.config.block_size, f"Cannot forward sequence of length {T} since the block size is {self.config.block_size}"
         pos = torch.arange(0,T, dtype = torch.long, device = idx.device) # position indices in the sequence
         pos_embd = self.transformer.wpe(pos) # (T, n_embd) position embeddings for each token in the sequence
