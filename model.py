@@ -72,6 +72,9 @@ class MLP(nn.Module):
         x = self.c_fc(x)
         x = self.gelu(x)
         x = self.c_proj(x)
+        return x
+
+
 class Block(nn.Module):
 
     def __init__(self, config):
