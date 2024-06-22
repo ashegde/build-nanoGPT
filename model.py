@@ -103,9 +103,21 @@ class GPT(nn.Module):
             ln_f = nn.LayerNorm(config.n_embd),                                   # final layer norm
         ))
         self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)    # language model head, final classifier
+       
         # weight sharing scheme
         self.transformer.wte.weight = self.lm_head.weight
 
+        # initialize parameters
+        self.apply(self._init_weights)
+
+    def _init_weights(self, module):
+        if isinstance(module, nn.Linear):
+            torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
+            if module.bias is not None:
+                torch.nn.init.zeros_(module.bias)
+        elif isinstance(module, nn.Embedding):
+            torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
+  
     def forward(self, idx, targets=None):
         # idx is (B,T)
         B, T = idx.size()
