@@ -115,7 +115,7 @@ class GPT(nn.Module):
         self.apply(self._init_weights)
 
     def _init_weights(self, module):
-        std = 0.2
+        std = 0.02
         if hasattr(module,'NANOGPT_SCALE_INIT'):
             std *= (2*self.config.n_layer)**(-0.5)
         if isinstance(module, nn.Linear):
