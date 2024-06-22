@@ -104,7 +104,7 @@ class GPT(nn.Module):
         ))
         self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)    # language model head, final classifier
 
-    def forward(self, idx):
+    def forward(self, idx, targets=None):
         # idx is (B,T)
         B, T = idx.size()
         assert T <= self.config.block_size, f"Cannot forward sequence of length {T} since the block size is {self.config.block_size}"
@@ -119,7 +119,11 @@ class GPT(nn.Module):
         logits = self.lm_head(x) # (B, T, vocab_size)
         # for a given batch b and token t, logits[b,t,:] gives the predictive distribution (in logits, pre-softmax)
         # for the next token t+1 given the previous :t tokens.
-        return logits
+        loss = None
+        if targets is not None:
+            loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1))
+
+        return logits, loss
  
 
 #---------------------------------------------------------------------------------#
