@@ -3,8 +3,8 @@ import torch
 import torch.nn as nn
 from torch.nn import functional as F
 import math
+import inspect
 
-# -------------------------------------------
 
 @dataclass
 class GPTConfig:
@@ -52,10 +52,12 @@ class CausalSelfAttention(nn.Module):
         k = k.view(B, T, self.n_head, C // self.n_head).transpose(1,2) #(B, n_head, T, h_size)
         v = v.view(B, T, self.n_head, C // self.n_head).transpose(1,2) #(B, n_head, T, h_size)
 
-        attn = (q@k.transpose(-2,-1)) * (1.0/math.sqrt(k.size(-1))) # (B, n_head, T, T) inner product of token embeddings for each head
-        attn.masked_fill(self.bias[:, :, :T, :T] == 0, float('-inf')) # lower triangular masking (pre-softmax), for causality
-        attn = F.softmax(attn, dim=-1) #(B, n_head, T, T)
-        y = attn @ v # (B, n_head, T, T) @ (B, n_head, T, h_size) = (B, n_head, T, h_size)
+        # attn = (q@k.transpose(-2,-1)) * (1.0/math.sqrt(k.size(-1))) # (B, n_head, T, T) inner product of token embeddings for each head
+        # attn.masked_fill(self.bias[:, :, :T, :T] == 0, float('-inf')) # lower triangular masking (pre-softmax), for causality
+        # attn = F.softmax(attn, dim=-1) #(B, n_head, T, T)
+        # y = attn @ v # (B, n_head, T, T) @ (B, n_head, T, h_size) = (B, n_head, T, h_size)
+        y = F.scaled_dot_product_attention(q, k, v, is_causal=True)  # flash attention
+
         y = y.transpose(1,2).contiguous().view(B,T,C) #(B,T, C = n_heads * h_size) 
 
         # output projection
@@ -145,6 +147,31 @@ class GPT(nn.Module):
             loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1))
 
         return logits, loss
+    
+    def configure_optimizers(self, weight_decay, learning_rate, device):
+        # candidate parameters
+        param_dict = {pn: p for pn, p in self.named_parameters()}
+        param_dict = {pn: p for pn, p in param_dict.items() if p.requires_grad}
+        
+        # weight decay applied only to tensor weights of order >= 2
+        decay_params = [p for n, p in param_dict.items() if p.dim() >= 2]
+        nodecay_params = [p for n, p in param_dict.items() if p.dim() < 2]
+        optim_groups = [
+            {"params": decay_params, 'weight_decay': weight_decay},
+            {"params": nodecay_params, "weight_decay": 0.0}
+        ]
+        num_decay_params = sum(p.numel() for p in decay_params)
+        num_nodecay_params = sum(p.numel() for p in nodecay_params)
+
+        print(f"Num decayed parameter tensors: {len(decay_params)}. Total decayed parameters: {num_decay_params}.")
+        print(f"Num non-decayed parameter tensors: {len(nodecay_params)}. Total non-decayed parameters: {num_nodecay_params}.")
+
+        # AdamW Optimizer
+        fused_avail = 'fused' in inspect.signature(torch.optim.AdamW).parameters
+        use_fused = fused_avail and 'cuda' in device
+        print(f"Using fused AdamW: {use_fused}")
+
+optimizer = torch.optim.AdamW(optim_groups, lr=learning_rate, betas=(0.9,0.95), eps=1e-8, fused=use_fused)
  
 
 #---------------------------------------------------------------------------------#
