@@ -36,6 +36,8 @@ else:
   device = "cuda" if torch.cuda.is_available() else "cpu"
   print(f"using device: {device}")
 
+device_type = "cuda" if device.startswith("cuda") else "cpu"
+
 seedval = 1337
 torch.manual_seed(seedval)
 if torch.cuda.is_available():
@@ -48,7 +50,7 @@ total_batch_size = 524288 #2**19 = roughly the 0.5M token batch size listed in t
 B = 64 # "micro"-batch size
 T = 1024 # sequence length
 assert total_batch_size % (B * T * ddp_world_size) == 0, "total_batch_size should be divisble by B * T * ddp_world_size"
-grad_accum_steps = total_batch_size // (B * T * ddp_world_size)
+grad_accum_steps = total_batch_size // (B * T * ddp_world_size) # = 1 for the above settings,
 if master_process:
   print(f"total desired batch size: {total_batch_size}")
   print(f"required gradient accumulation steps: {grad_accum_steps}")
@@ -78,7 +80,7 @@ max_steps = 19073
 # note, the fineweb dataset we are using contains 1e10 tokens. During each optimization step, we process 524288 tokens.
 # 1e10 / 5.24288e5 = 19073 = max_steps. Hence, our training setup only achieves 1 pass through the dataset, i.e., 1 epoch.
 
-optimizer = raw_model.configure_optimizers(weight_decay = 0.1, learning_rate=max_lr, device=device)
+optimizer = raw_model.configure_optimizers(weight_decay = 0.1, learning_rate=max_lr, device=device_type)
 scheduler = LinearWarmupCosineAnnealingScheduler(max_lr=max_lr, min_lr=min_lr, warmup_steps=warmup_steps, max_steps=max_steps)
 
 # logging
@@ -103,7 +105,7 @@ for step in range(max_steps):
       for _ in range(val_loss_steps):
         x, y = val_loader.next_batch()
         x, y = x.to(device), y.to(device)
-        with torch.autocast(device_type=device, dtype=torch.bfloat16):
+        with torch.autocast(device_type=device_type, dtype=torch.bfloat16):
           logits, loss = model(x,y)
         loss = loss / val_loss_steps
         val_loss_accum += loss.detach()
@@ -122,12 +124,12 @@ for step in range(max_steps):
     x, y = train_loader.next_batch()
     x = x.to(device)
     y = y.to(device)
-    with torch.autocast(device_type=device, dtype=torch.bfloat16):
+    if ddp:
+      model.require_backward_grad_sync = (micro_step == grad_accum_steps - 1)
+    with torch.autocast(device_type=device_type, dtype=torch.bfloat16):
       logits, loss = model(x,y)
     loss = loss / grad_accum_steps # compensate for accumulation, the loss defaults to a mean reduction
     loss_accum += loss.detach()
-    if ddp:
-      model.require_backward_grad_sync = (micro_step == grad_accum_steps - 1)
     loss.backward()
   if ddp:
     dist.all_reduce(loss_accum, op=dist.ReduceOp.AVG)
@@ -137,7 +139,8 @@ for step in range(max_steps):
   for param_group in optimizer.param_groups:
     param_group['lr'] = lr
   optimizer.step()
-  #torch.cuda.synchronizer() # need cuda
+  if device_type == "cuda":
+    torch.cuda.synchronize() 
   t1 = time.time()
   dt = t1-t0
   if master_process:

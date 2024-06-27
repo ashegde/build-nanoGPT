@@ -2,7 +2,6 @@ from dataclasses import dataclass
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
-import math
 import inspect
 
 
@@ -30,10 +29,8 @@ class CausalSelfAttention(nn.Module):
 
         # this is more of a mask than a bias, but following Karpathy's lecture, which follows the 
         # OpenAI/HuggingFace naming convention, we will use "bias".
-        self.register_buffer("bias", torch.tril(torch.ones(config.block_size, config.block_size))
-                             .view(1, 1, config.block_size, config.block_size))
-
-
+        # EDIT 6-27-2024, this is handled in scaled_dot_product_attention
+        # self.register_buffer("bias", torch.tril(torch.ones(config.block_size, config.block_size)).view(1, 1, config.block_size, config.block_size))
 
     def forward(self, x):
         # x is (B, T, C), 
@@ -96,6 +93,7 @@ class Block(nn.Module):
         x = x + self.mlp(self.ln_2(x))
         return x
     
+
 class GPT(nn.Module):
 
     def __init__(self, config):
@@ -172,6 +170,3 @@ class GPT(nn.Module):
         print(f"Using fused AdamW: {use_fused}")
         optimizer = torch.optim.AdamW(optim_groups, lr=learning_rate, betas=(0.9,0.95), eps=1e-8, fused=use_fused)
         return optimizer
- 
-
-#---------------------------------------------------------------------------------#
