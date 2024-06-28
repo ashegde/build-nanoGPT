@@ -72,7 +72,7 @@ if ddp:
 
 raw_model = model.module if ddp else model
 
-max_lr = 6e-4 * 2 # bumping up the max learning rate
+max_lr = 6e-4 * 2 # bumping up the max learning rate by 2
 min_lr = 0.1 * max_lr
 warmup_steps = 715
 max_steps = 19073
@@ -144,10 +144,10 @@ for step in range(max_steps):
   t1 = time.time()
   dt = t1-t0
   if master_process:
-    print(f'step {step} || loss: {loss_accum.item():} || norm: {norm:.4f} || time elapsed: dt={dt*1000:.4f}ms')
+    print(f'step {step} || loss: {loss_accum.item():} || norm: {norm:.4f} || elapsed_time: dt={dt*1000:.4f}ms')
     with open(log_file, "a") as f:
       f.write(f"{step} train {loss_accum.item():.6f}\n")
-    if step > 0 and (step % 5000 == 0 or last_step):
+    if step > 0 and (step % 5000 == 0 or is_last_step):
       checkpoint_path = os.path.join(log_dir, f"model_{step:05d}.pt")
       checkpoint = {
         'model': raw_model.state_dict(),

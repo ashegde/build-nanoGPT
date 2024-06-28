@@ -4,6 +4,8 @@ import numpy as np
 import tiktoken
 from datasets import load_dataset
 from tqdm import tqdm
+import time 
+
 
 local_dir = "edu_fineweb10B"
 remote_name = "sample-10BT"
@@ -13,6 +15,14 @@ shard_size = int(1e8)
 # local directory
 DATA_CACHE_DIR = os.path.join(os.path.dirname(__file__), local_dir)
 os.makedirs(DATA_CACHE_DIR, exist_ok=True)
+
+# logging and start timer
+log_dir = "log"
+os.makedirs(log_dir, exists_ok=True)
+log_file = os.path.join(log_dir, f"log_fineweb10B.txt")
+with open(log_file, "w") as f: # clearing file if it exists
+  pass
+t0 = time.time()
 
 # download dataset
 fw = load_dataset("HuggingFaceFW/fineweb-edu", name=remote_name, split="train")
@@ -74,4 +84,7 @@ with mp.Pool(nprocs) as pool:
         filename = os.path.joint(DATA_CACHE_DIR, f"edufineweb_{split}_{shard_index:06d}")
         write_datafile(filename, all_tokens_np[:token_count]) 
 
-
+t1 = time.time()
+dt = t1-t0
+with open(log_file, "a") as f:
+    f.write(f"elapsed time {dt:.6f}\n")
