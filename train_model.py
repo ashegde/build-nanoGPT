@@ -47,7 +47,7 @@ if torch.cuda.is_available():
 total_batch_size = 524288 #2**19 = roughly the 0.5M token batch size listed in the GPT3 paper regarding the size of the 125M parameter GPT2
 # each of the `WORLD_SIZE` processes will use the following B and T.
 # thus, each forward pass through the model (during training) will process B * T * ddp_world_size tokens
-B = 64 # "micro"-batch size
+B = 16 # "micro"-batch size
 T = 1024 # sequence length
 assert total_batch_size % (B * T * ddp_world_size) == 0, "total_batch_size should be divisble by B * T * ddp_world_size"
 grad_accum_steps = total_batch_size // (B * T * ddp_world_size) # = 1 for the above settings,
@@ -66,13 +66,13 @@ cfg = GPTConfig(vocab_size=50304) #overriding vocab_size with a power of 2
 model = GPT(cfg)
 model.to(device)
 model.train()
-model = torch.compile(model) # most of the benefit here may be for GPUs
+#model = torch.compile(model) # most of the benefit here may be for GPUs
 if ddp:
   model = DDP(model, device_ids=[ddp_local_rank])
 
 raw_model = model.module if ddp else model
 
-max_lr = 6e-4 * 2 # bumping up the max learning rate by 2
+max_lr = 6e-4 * 2 # bumping up the max learning rate by a factor of 2
 min_lr = 0.1 * max_lr
 warmup_steps = 715
 max_steps = 19073
@@ -85,7 +85,7 @@ scheduler = LinearWarmupCosineAnnealingScheduler(max_lr=max_lr, min_lr=min_lr, w
 
 # logging
 log_dir = "log"
-os.makedirs(log_dir, exists_ok=True)
+os.makedirs(log_dir, exist_ok=True)
 log_file = os.path.join(log_dir, f"log.txt")
 with open(log_file, "w") as f: # clearing file if it exists
   pass
@@ -144,7 +144,9 @@ for step in range(max_steps):
   t1 = time.time()
   dt = t1-t0
   if master_process:
-    print(f'step {step} || loss: {loss_accum.item():} || norm: {norm:.4f} || elapsed_time: dt={dt*1000:.4f}ms')
+    tokens_processed = train_loader.B * train_loader.T * grad_accum_steps * ddp_world_size
+    tokens_per_sec = tokens_processed / dt
+    print(f'step {step} || loss: {loss_accum.item():.4f} || norm: {norm:.4f} || elapsed_time: dt={dt*1000:.4f}ms || tok/sec: {tokens_per_sec:.2f}')
     with open(log_file, "a") as f:
       f.write(f"{step} train {loss_accum.item():.6f}\n")
     if step > 0 and (step % 5000 == 0 or is_last_step):

@@ -18,7 +18,7 @@ os.makedirs(DATA_CACHE_DIR, exist_ok=True)
 
 # logging and start timer
 log_dir = "log"
-os.makedirs(log_dir, exists_ok=True)
+os.makedirs(log_dir, exist_ok=True)
 log_file = os.path.join(log_dir, f"log_fineweb10B.txt")
 with open(log_file, "w") as f: # clearing file if it exists
   pass
@@ -41,8 +41,7 @@ def tokenize(doc):
     return tokens_np_uint16
 
 def write_datafile(filename, tokens_np):
-    with open(filename, "wb") as f:
-        f.write(tokens_np.tobytes())
+    np.save(filename, tokens_np)
 
 # tokenize all documents and write output shards
 nprocs = max(1, os.cpu_count()//2)
@@ -66,7 +65,7 @@ with mp.Pool(nprocs) as pool:
         else:
             # write what we can to the current shard and then start a new one
             split = "val" if shard_index == 0 else "train"
-            filename = os.path.joint(DATA_CACHE_DIR, f"edufineweb_{split}_{shard_index:06d}")
+            filename = os.path.join(DATA_CACHE_DIR, f"edufineweb_{split}_{shard_index:06d}")
             #
             remainder = shard_size - token_count
             progress_bar.update(remainder)
@@ -81,7 +80,7 @@ with mp.Pool(nprocs) as pool:
     # write the remaining tokens to the final shard
     if token_count != 0:
         split = "val" if shard_index == 0 else "train"
-        filename = os.path.joint(DATA_CACHE_DIR, f"edufineweb_{split}_{shard_index:06d}")
+        filename = os.path.join(DATA_CACHE_DIR, f"edufineweb_{split}_{shard_index:06d}")
         write_datafile(filename, all_tokens_np[:token_count]) 
 
 t1 = time.time()
